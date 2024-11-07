@@ -12,7 +12,7 @@ This is a Discord bot for setting reminders, built using Discord.js 14, node-cro
 
 1. Clone the repository:
     ```bash
-    git clone https://github.com/yourusername/reminders-bot.git
+    git clone https://github.com/padlocks/reminders-bot.git
     cd reminders-bot
     ```
 
