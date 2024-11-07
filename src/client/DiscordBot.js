@@ -65,19 +65,22 @@ class DiscordBot extends Client {
     connect = async () => {
         warn(`Attempting to connect to the Discord bot... (${this.login_attempts + 1})`);
         mongoose();
-
+    
         this.login_timestamp = Date.now();
-
+    
         try {
             await this.login(process.env.CLIENT_TOKEN);
             this.commands_handler.load();
             this.components_handler.load();
             this.events_handler.load();
             this.startStatusRotation();
-
-            warn('Attempting to register application commands... (this might take a while!)');
-            await this.commands_handler.registerApplicationCommands(config.development);
-            success('Successfully registered application commands. For specific guild? ' + (config.development.enabled ? 'Yes' : 'No'));
+    
+            // Register commands only if not registered
+            if (!this.commands_handler.commandsRegistered) {
+                warn('Attempting to register application commands... (this might take a while!)');
+                await this.commands_handler.registerApplicationCommands(config.development);
+                success('Successfully registered application commands.');
+            }
         } catch (err) {
             error('Failed to connect to the Discord bot, retrying...');
             error(err);
@@ -85,6 +88,7 @@ class DiscordBot extends Client {
             setTimeout(this.connect, 5000);
         }
     }
+    
 }
 
 module.exports = DiscordBot;
