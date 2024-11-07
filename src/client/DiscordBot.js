@@ -6,7 +6,7 @@ const CommandsListener = require("./handler/CommandsListener");
 const ComponentsHandler = require("./handler/ComponentsHandler");
 const ComponentsListener = require("./handler/ComponentsListener");
 const EventsHandler = require("./handler/EventsHandler");
-const { QuickYAML } = require('quick-yaml.db');
+const mongoose = require("./handler/Mongoose");
 
 class DiscordBot extends Client {
     collection = {
@@ -24,15 +24,12 @@ class DiscordBot extends Client {
     login_attempts = 0;
     login_timestamp = 0;
     statusMessages = [
-        { name: 'Status 1', type: 4 },
-        { name: 'Status 2', type: 4 },
-        { name: 'Status 3', type: 4 }
+        { name: 'Listening to your commands!', type: 4 }
     ];
 
     commands_handler = new CommandsHandler(this);
     components_handler = new ComponentsHandler(this);
     events_handler = new EventsHandler(this);
-    database = new QuickYAML(config.database.path);
 
     constructor() {
         super({
@@ -46,9 +43,9 @@ class DiscordBot extends Client {
             ],
             presence: {
                 activities: [{
-                    name: 'keep this empty',
+                    name: '',
                     type: 4,
-                    state: 'DiscordJS-V14-Bot-Template v3'
+                    state: 'Listening to your commands!',
                 }]
             }
         });
@@ -67,6 +64,7 @@ class DiscordBot extends Client {
 
     connect = async () => {
         warn(`Attempting to connect to the Discord bot... (${this.login_attempts + 1})`);
+        mongoose();
 
         this.login_timestamp = Date.now();
 

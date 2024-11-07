@@ -1,6 +1,6 @@
 const config = {
     database: {
-        path: './database.yml' // The database path.
+        uri: 'use .env' // The mongo database uri.
     },
     development: {
         enabled: false, // If true, the bot will register all application commands to a specific guild (not globally).

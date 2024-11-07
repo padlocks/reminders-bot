@@ -47,8 +47,9 @@ class EventsHandler {
                     } else {
                         error('Invalid event type ' + module.__type__ + ' from event file ' + file);
                     }
-                } catch (err) {
+                } catch (e) {
                     error('Unable to load a event from the path: ' + 'src/events/' + directory + '/' + file);
+                    error(e);
                 }
             }
         }
