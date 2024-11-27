@@ -42,7 +42,9 @@ class Guild {
 
 	async getReminders() {
 		const reminders = await Promise.all(this.guild.reminders.map(async reminder => await Reminder.getReminderById(reminder)));
-		return reminders;
+
+		// Strip out any null values
+		return reminders.filter(reminder => reminder !== null);
 	}
 
 	async addReminder(reminder) {

@@ -117,51 +117,60 @@ module.exports = new ApplicationCommand({
 
 				const row = new ActionRowBuilder().addComponents(cancel, confirm);
 
-				await modalInteraction.reply({
-					content: `Reminder Preview:\n**Name:** ${reminderName}\n**Message:**\n${reminderMessage}\n\nIs this correct?`,
-					components: [row],
-					ephemeral: true
-				});
+				try {
+					await modalInteraction.reply({
+						content: reminderMessage,
+						components: [row],
+						ephemeral: true
+					});
 
-				const filter = i => i.customId === 'confirm-create-reminder' || i.customId === 'cancel-create-reminder';
-				const collector = modalInteraction.channel.createMessageComponentCollector({ filter, time: 15000 });
 
-				collector.on('collect', async i => {
-					collector.stop();
-					if (i.customId === 'confirm-create-reminder') {
-						await i.update({ content: 'Reminder created successfully!', components: [] });
+					const filter = i => i.customId === 'confirm-create-reminder' || i.customId === 'cancel-create-reminder';
+					const collector = modalInteraction.channel.createMessageComponentCollector({ filter, time: 15000 });
 
-						const reminder = new Reminder({
-							name: reminderName,
-							message: reminderMessage,
-							guild: interaction.guild.id,
-							createdBy: interaction.user.id,
-							channel: channel.id,
-							cronTime: cronTime
-						});
-						await reminder.save();
+					collector.on('collect', async i => {
+						collector.stop();
+						if (i.customId === 'confirm-create-reminder') {
+							await i.update({ content: 'Reminder created successfully!', components: [] });
 
-						const guild = await Guild.getGuildById(interaction.guild.id);
-						await guild.addReminder(reminder);
+							const reminder = new Reminder({
+								name: reminderName,
+								message: reminderMessage,
+								guild: interaction.guild.id,
+								createdBy: interaction.user.id,
+								channel: channel.id,
+								cronTime: cronTime
+							});
+							await reminder.save();
 
-						// Schedule the reminder using node-cron
-						const job = cron.schedule(cronTime, async () => {
-							const ch = await client.channels.fetch(channel.id);
-							ch.send(reminderMessage);
-						});
+							const guild = await Guild.getGuildById(interaction.guild.id);
+							await guild.addReminder(reminder);
 
-						schedules.set((await reminder.getId()).toString(), job);
+							// Schedule the reminder using node-cron
+							const job = cron.schedule(cronTime, async () => {
+								const ch = await client.channels.fetch(channel.id);
+								ch.send(reminderMessage);
+								await reminder.updateLastRun();
+							});
 
-					} else if (i.customId === 'cancel-create-reminder') {
-						await i.update({ content: 'Reminder creation cancelled.', components: [] });
-					}
-				});
+							schedules.set((await reminder.getId()).toString(), job);
 
-				collector.on('end', collected => {
-					if (collected.size === 0) {
-						modalInteraction.editReply({ content: 'No response received. Reminder creation timed out.', components: [] });
-					}
-				});
+						} else if (i.customId === 'cancel-create-reminder') {
+							await i.update({ content: 'Reminder creation cancelled.', components: [] });
+						}
+					});
+
+					collector.on('end', collected => {
+						if (collected.size === 0) {
+							modalInteraction.editReply({ content: 'No response received. Reminder creation timed out.', components: [] });
+						}
+					});
+				} catch (error) {
+					// Ignore Unknown Interaction error
+					if (error.code === 10062) return;
+					if (error.code === 40060) return;
+					console.error(error);
+				}
 			};
 
 			// Register the listener
@@ -182,10 +191,10 @@ module.exports = new ApplicationCommand({
 			}
 
 			// Create a select menu with all reminders
-			const reminderOptions = await Promise.all(reminders.map(async reminder => ({
-				label: await reminder.getName(),
-				description: (await reminder.getMessage()).substring(0, 50), // Excerpt of the message
-				value: (await reminder.getId()).toString()
+			const reminderOptions = await Promise.all(reminders.map(async r => ({
+				label: await r.getName(),
+				description: (await r.getMessage()).substring(0, 50), // Excerpt of the message
+				value: (await r.getId()).toString()
 			})));
 
 			const selectMenu = new StringSelectMenuBuilder()
@@ -197,73 +206,84 @@ module.exports = new ApplicationCommand({
 			const actionRow = new ActionRowBuilder().addComponents(selectMenu);
 
 			// Send the select menu to the user
-			await interaction.reply({
-				content: 'Please select a reminder to delete:',
-				components: [actionRow],
-				ephemeral: true
-			});
+			try {
+				await interaction.reply({
+					content: 'Please select a reminder to delete:',
+					components: [actionRow],
+					ephemeral: true
+				});
 
-			// Create a collector to listen for the select menu
-			const filter = i => i.customId === 'select-reminder' && i.user.id === interaction.user.id;
-			const collector = interaction.channel.createMessageComponentCollector({ filter, time: 15000 });
+				// Create a collector to listen for the select menu
+				const filter = i => i.customId === 'select-reminder' && i.user.id === interaction.user.id;
+				const collector = interaction.channel.createMessageComponentCollector({ filter, time: 15000 });
 
-			collector.on('collect', async i => {
-				if (i.customId === 'select-reminder') {
-					const r = await Reminder.getReminderById(i.values[0]);
+				collector.on('collect', async i => {
+					if (i.customId === 'select-reminder') {
+						const r = await Reminder.getReminderById(i.values[0]);
 
-					// Create confirm and cancel buttons
-					const confirmButton = new ButtonBuilder()
-						.setCustomId('confirm-delete')
-						.setLabel('Confirm')
-						.setStyle(ButtonStyle.Danger);
+						// Create confirm and cancel buttons
+						const confirmButton = new ButtonBuilder()
+							.setCustomId('confirm-delete')
+							.setLabel('Confirm')
+							.setStyle(ButtonStyle.Danger);
 
-					const cancelButton = new ButtonBuilder()
-						.setCustomId('cancel-delete')
-						.setLabel('Cancel')
-						.setStyle(ButtonStyle.Secondary);
+						const cancelButton = new ButtonBuilder()
+							.setCustomId('cancel-delete')
+							.setLabel('Cancel')
+							.setStyle(ButtonStyle.Secondary);
 
-					const buttonRow = new ActionRowBuilder().addComponents(cancelButton, confirmButton);
+						const buttonRow = new ActionRowBuilder().addComponents(cancelButton, confirmButton);
 
-					await i.update({
-						content: `Are you sure you want to delete the reminder: "${await r.getName()}"?`,
-						components: [buttonRow]
-					});
+						await i.update({
+							content: `Are you sure you want to delete the reminder: "${await r.getName()}"?`,
+							components: [buttonRow]
+						});
 
-					const buttonFilter = btn => ['confirm-delete', 'cancel-delete'].includes(btn.customId) && btn.user.id === interaction.user.id;
-					const buttonCollector = interaction.channel.createMessageComponentCollector({ buttonFilter, time: 15000 });
+						const buttonFilter = btn => ['confirm-delete', 'cancel-delete'].includes(btn.customId) && btn.user.id === interaction.user.id;
+						const buttonCollector = interaction.channel.createMessageComponentCollector({ buttonFilter, time: 15000 });
 
-					buttonCollector.on('collect', async btn => {
-						if (btn.customId === 'confirm-delete') {
-							// Unschedule the reminder
-							const reminderId = (await r.getId()).toString();
-							if (schedules.has(reminderId)) {
-								const job = schedules.get(reminderId);
-								job.stop();
-								schedules.delete(reminderId);
+						buttonCollector.on('collect', async btn => {
+							try {
+								if (btn.customId === 'confirm-delete') {
+									// Unschedule the reminder
+									const reminderId = (await r.getId()).toString();
+									if (schedules.has(reminderId)) {
+										const job = schedules.get(reminderId);
+										job.stop();
+										schedules.delete(reminderId);
+									}
+
+									await guild.removeReminder(r);
+									await r.delete();
+									
+									await btn.update({ content: 'Reminder deleted.', components: [] });
+								} else if (btn.customId === 'cancel-delete') {
+									await btn.update({ content: 'Reminder deletion canceled.', components: [] });
+								}
+							} catch (error) {
+								// Ignore
 							}
+						});
 
-							await guild.removeReminder(r);
-							await r.delete();
-							
-							await btn.update({ content: 'Reminder deleted.', components: [] });
-						} else if (btn.customId === 'cancel-delete') {
-							await btn.update({ content: 'Reminder deletion canceled.', components: [] });
-						}
-					});
+						buttonCollector.on('end', collected => {
+							if (collected.size === 0) {
+								i.editReply({ content: 'No response received. Reminder deletion timed out.', components: [] });
+							}
+						});
+					}
+				});
 
-					buttonCollector.on('end', collected => {
-						if (collected.size === 0) {
-							i.editReply({ content: 'No response received. Reminder deletion timed out.', components: [] });
-						}
-					});
-				}
-			});
-
-			collector.on('end', collected => {
-				if (collected.size === 0) {
-					interaction.editReply({ content: 'No response received. Reminder selection timed out.', components: [] });
-				}
-			});
+				collector.on('end', collected => {
+					if (collected.size === 0) {
+						interaction.editReply({ content: 'No response received. Reminder selection timed out.', components: [] });
+					}
+				});
+			} catch (error) {
+				// Ignore Unknown Interaction error
+				if (error.code === 10062) return;
+				if (error.code === 40060) return;
+				console.error(error);
+			}
 		}
 		else if (subcommand === 'list') {
 			const guild = await Guild.getGuildById(interaction.guild.id);
@@ -279,16 +299,20 @@ module.exports = new ApplicationCommand({
 
 			const embeds = [];
 			let fields = [];
-			fields = await Promise.all(reminders.map(async reminder => {
-				const name = await reminder.getName();
-				const message = await reminder.getMessage();
-				const cronTime = await reminder.getCronTime();
+			fields = await Promise.all(reminders.map(async r => {
+				const name = await r.getName();
+				let message = await r.getMessage();
+				const cronTime = await r.getCronTime();
+
+				if (message && message.length > 1020) {
+					message = message.substring(0, 1020) + '...';
+				}
 
 				return {
 					name: name + ' - ' + cronTime,
-					value: message,
+					value: message || 'No message provided.',
 					inline: false
-				}
+				};
 			}));
 
 			const chunkSize = 1;
@@ -417,6 +441,7 @@ module.exports = new ApplicationCommand({
 								const job = cron.schedule(await reminder.getCronTime(), async () => {
 									const ch = await client.channels.fetch(await reminder.getChannel());
 									ch.send(await reminder.getMessage());
+									await reminder.updateLastRun();
 								});
 
 								schedules.set(reminderId, job);

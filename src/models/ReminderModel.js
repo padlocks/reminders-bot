@@ -25,6 +25,10 @@ const ReminderSchema = new Schema({
 		type: String,
 		required: true,
 	},
+	lastRun: {
+		type: Date,
+		default: Date.now,
+	},
 }, { timestamps: true });
 
 

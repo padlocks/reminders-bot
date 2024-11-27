@@ -1,6 +1,7 @@
 const { success } = require("../../utils/Console");
 const Event = require("../../structure/Event");
 const { ReminderModel } = require("../../models/ReminderModel");
+const Reminder = require("../../structure/Reminder");
 const schedules = require('../../utils/Schedules');
 const cron = require('node-cron'); 
 
@@ -20,6 +21,9 @@ module.exports = new Event({
                     if (!channel) return;
 
                     channel.send(reminder.message);
+                    
+                    const reminderInstance = new Reminder(reminder);
+                    await reminderInstance.updateLastRun();
                 });
 
                 schedules.set(reminder._id.toString(), job);

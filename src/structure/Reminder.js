@@ -79,6 +79,15 @@ class Reminder {
 		return this.reminder.updatedAt;
 	}
 
+	async getLastRun() {
+		return this.reminder.lastRun;
+	}
+
+	async updateLastRun() {
+		this.reminder.lastRun = Date.now();
+		return this.save();
+	}
+
 	static async getReminderById(reminderId) {
 		const reminderData = await ReminderModel.findOne({ _id: reminderId });
 		if (!reminderData) {
