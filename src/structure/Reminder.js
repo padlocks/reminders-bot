@@ -31,12 +31,13 @@ class Reminder {
 		return this.save();
 	}
 
-	async getMessage() {
-		return this.reminder.message;
+	async getMessages() {
+		return this.reminder.messages;
 	}
 
-	async setMessage(message) {
-		this.reminder.message = message;
+	async setMessages(message) {
+		const messages = await Reminder.parseLimit(message);
+		this.reminder.messages = messages;
 		return this.save();
 	}
 
@@ -94,6 +95,23 @@ class Reminder {
 			return null;
 		}
 		return new Reminder(reminderData);
+	}
+
+	static async parseLimit(message, limit = 2000) {
+		// Split the message into substrings of 2000 characters and prefer to split at new lines
+		const messages = [];
+		let currentMessage = '';
+		for (const line of message.split('\n')) {
+			if (currentMessage.length + line.length > limit) {
+				messages.push(currentMessage);
+				currentMessage = '';
+			}
+			currentMessage += line + '\n';
+		}
+		if (currentMessage) {
+			messages.push(currentMessage);
+		}
+		return messages;
 	}
 }
 

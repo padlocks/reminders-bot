@@ -5,10 +5,10 @@ const ReminderSchema = new Schema({
 		type: String,
 		required: true,
 	},
-	message: {
+	messages: [{
 		type: String,
 		required: true,
-	},
+	}],
 	cronTime: {
 		type: String,
 		required: true,

@@ -19,11 +19,15 @@ module.exports = new Event({
                 const job = cron.schedule(reminder.cronTime, async () => {
                     const channel = await client.channels.fetch(reminder.channel);
                     if (!channel) return;
-
-                    channel.send(reminder.message);
                     
                     const reminderInstance = new Reminder(reminder);
-                    await reminderInstance.updateLastRun();
+                    const messages = await reminderInstance.getMessages();
+
+                    await reminder.updateLastRun();
+
+					for (const message of messages) {
+					    channel.send(message);
+					}
                 });
 
                 schedules.set(reminder._id.toString(), job);

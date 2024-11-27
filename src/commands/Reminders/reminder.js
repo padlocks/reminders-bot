@@ -85,7 +85,7 @@ module.exports = new ApplicationCommand({
 			const reminderMessage = new TextInputBuilder()
 				.setCustomId('reminder-message-input')
 				.setLabel('Reminder Message')
-				.setMaxLength(2_000)
+				.setMaxLength(4_000)
 				.setStyle(TextInputStyle.Paragraph);
 
 			modal.addComponents(
@@ -104,6 +104,7 @@ module.exports = new ApplicationCommand({
 
 				const reminderName = modalInteraction.fields.getTextInputValue('reminder-name-input');
 				const reminderMessage = modalInteraction.fields.getTextInputValue('reminder-message-input');
+				const messages = await Reminder.parseLimit(reminderMessage);
 
 				const confirm = new ButtonBuilder()
 					.setCustomId('confirm-create-reminder')
@@ -118,8 +119,10 @@ module.exports = new ApplicationCommand({
 				const row = new ActionRowBuilder().addComponents(cancel, confirm);
 
 				try {
+					const parsedMessages = await Reminder.parseLimit(reminderMessage, 1990);
+					const excerpt = parsedMessages.length > 0 ? parsedMessages[0] : null;
 					await modalInteraction.reply({
-						content: reminderMessage,
+						content: excerpt ? (excerpt + '...') : 'Invalid reminder message.',
 						components: [row],
 						ephemeral: true
 					});
@@ -135,7 +138,7 @@ module.exports = new ApplicationCommand({
 
 							const reminder = new Reminder({
 								name: reminderName,
-								message: reminderMessage,
+								messages: messages,
 								guild: interaction.guild.id,
 								createdBy: interaction.user.id,
 								channel: channel.id,
@@ -149,8 +152,12 @@ module.exports = new ApplicationCommand({
 							// Schedule the reminder using node-cron
 							const job = cron.schedule(cronTime, async () => {
 								const ch = await client.channels.fetch(channel.id);
-								ch.send(reminderMessage);
+								
 								await reminder.updateLastRun();
+
+								for (const message of messages) {
+									ch.send(message);
+								}
 							});
 
 							schedules.set((await reminder.getId()).toString(), job);
@@ -191,11 +198,23 @@ module.exports = new ApplicationCommand({
 			}
 
 			// Create a select menu with all reminders
-			const reminderOptions = await Promise.all(reminders.map(async r => ({
-				label: await r.getName(),
-				description: (await r.getMessage()).substring(0, 50), // Excerpt of the message
-				value: (await r.getId()).toString()
-			})));
+			const reminderOptions = await Promise.all(reminders.map(async r => {
+				const messages = await r.getMessages();
+
+				if (messages.length === 0) {
+					return {
+						label: await r.getName(),
+						description: 'No message provided.',
+						value: (await r.getId()).toString()
+					};
+				}
+
+				return {
+					label: await r.getName(),
+					description: messages[0].substring(0, 50), // Excerpt of the message
+					value: (await r.getId()).toString()
+				};
+			}));
 
 			const selectMenu = new StringSelectMenuBuilder()
 				.setCustomId('select-reminder')
@@ -301,12 +320,19 @@ module.exports = new ApplicationCommand({
 			let fields = [];
 			fields = await Promise.all(reminders.map(async r => {
 				const name = await r.getName();
-				let message = await r.getMessage();
+				const messages = await r.getMessages();
 				const cronTime = await r.getCronTime();
 
-				if (message && message.length > 1020) {
-					message = message.substring(0, 1020) + '...';
+				if (messages.length === 0) {
+					return {
+						name: name + ' - ' + cronTime,
+						value: 'No message provided.',
+						inline: false
+					};
 				}
+
+				let newMessages = await Reminder.parseLimit(messages[0], 1020);
+				const message = newMessages[0] + '...';
 
 				return {
 					name: name + ' - ' + cronTime,
@@ -343,11 +369,24 @@ module.exports = new ApplicationCommand({
 				return;
 			}
 		
-			const reminderOptions = await Promise.all(reminders.map(async reminder => ({
-				label: await reminder.getName(),
-				description: (await reminder.getMessage()).substring(0, 50), // Excerpt of the message
-				value: (await reminder.getId()).toString()
-			})));
+			// Create a select menu with all reminders
+			const reminderOptions = await Promise.all(reminders.map(async r => {
+				const messages = await r.getMessages();
+
+				if (messages.length === 0) {
+					return {
+						label: await r.getName(),
+						description: 'No message provided.',
+						value: (await r.getId()).toString()
+					};
+				}
+
+				return {
+					label: await r.getName(),
+					description: messages[0].substring(0, 50), // Excerpt of the message
+					value: (await r.getId()).toString()
+				};
+			}));
 		
 			const selectMenu = new StringSelectMenuBuilder()
 				.setCustomId('select-reminder-edit')
@@ -378,16 +417,27 @@ module.exports = new ApplicationCommand({
 						.setLabel('Name of Reminder')
 						.setStyle(TextInputStyle.Short)
 						.setPlaceholder(await reminder.getName());
+					
+					const reminderCron = new TextInputBuilder()
+						.setCustomId('edit-reminder-cron-input')
+						.setLabel('Cron Time')
+						.setStyle(TextInputStyle.Short)
+						.setPlaceholder(await reminder.getCronTime());
+
+					const messages = await reminder.getMessages();
+					const limitedMessages = await Reminder.parseLimit(messages[0], 100);
+					const placeholder = limitedMessages.length > 0 ? limitedMessages[0] : 'No message provided.';
 		
 					const reminderMessage = new TextInputBuilder()
 						.setCustomId('edit-reminder-message-input')
 						.setLabel('Reminder Message')
-						.setMaxLength(2_000)
+						.setMaxLength(4_000)
 						.setStyle(TextInputStyle.Paragraph)
-						.setPlaceholder(await reminder.getMessage());
+						.setPlaceholder(placeholder);
 		
 					modal.addComponents(
 						new ActionRowBuilder().addComponents(reminderName),
+						new ActionRowBuilder().addComponents(reminderCron),
 						new ActionRowBuilder().addComponents(reminderMessage)
 					);
 		
@@ -399,6 +449,7 @@ module.exports = new ApplicationCommand({
 						if (modalInteraction.replied) return;
 		
 						const reminderName = modalInteraction.fields.getTextInputValue('edit-reminder-name-input');
+						const reminderCron = modalInteraction.fields.getTextInputValue('edit-reminder-cron-input');
 						const reminderMessage = modalInteraction.fields.getTextInputValue('edit-reminder-message-input');
 		
 						const confirm = new ButtonBuilder()
@@ -412,9 +463,11 @@ module.exports = new ApplicationCommand({
 							.setStyle(ButtonStyle.Secondary);
 		
 						const row = new ActionRowBuilder().addComponents(cancel, confirm);
-		
+
+						const parsedMessages = await Reminder.parseLimit(reminderMessage, 1990);
+						const excerpt = parsedMessages.length > 0 ? parsedMessages[0] : null;
 						await modalInteraction.update({
-							content: `Reminder Preview:\n**Name:** ${reminderName}\n**Message:**\n${reminderMessage}\n\nIs this correct?`,
+							content: excerpt ? (excerpt + '...') : 'Invalid reminder message.',
 							components: [row],
 							ephemeral: true
 						});
@@ -426,9 +479,11 @@ module.exports = new ApplicationCommand({
 							collector.stop();
 							if (i.customId === 'confirm-edit-reminder') {
 								await i.update({ content: 'Reminder edited successfully!', components: [] });
-		
+								
+								// If only each response could be blank, we could skip a field if it was not edited
 								await reminder.setName(reminderName);
-								await reminder.setMessage(reminderMessage);
+								await reminder.setCronTime(reminderCron);
+								await reminder.setMessages(reminderMessage);
 
 								// Reschedule the reminder
 								const reminderId = (await reminder.getId()).toString();
@@ -440,8 +495,12 @@ module.exports = new ApplicationCommand({
 
 								const job = cron.schedule(await reminder.getCronTime(), async () => {
 									const ch = await client.channels.fetch(await reminder.getChannel());
-									ch.send(await reminder.getMessage());
+									const messages = await reminder.getMessages();
 									await reminder.updateLastRun();
+
+									for (const message of messages) {
+										ch.send(message);
+									}
 								});
 
 								schedules.set(reminderId, job);
