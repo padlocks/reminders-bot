@@ -49,6 +49,12 @@ module.exports = new ApplicationCommand({
 				description: 'Edits a reminder for your server.',
 				type: 1, // 1 is the type for a subcommand
 				options: []
+			},
+			{
+				name: 'preview',
+				description: 'Previews a reminder for your server.',
+				type: 1, // 1 is the type for a subcommand
+				options: []
 			}
 		]
 	},
@@ -525,6 +531,71 @@ module.exports = new ApplicationCommand({
 			collector.on('end', collected => {
 				if (collected.size === 0) {
 					interaction.editReply({ content: 'No response received. Reminder selection timed out.', components: [] });
+				}
+			});
+		}
+		else if (subcommand === 'preview') {
+			// Selection menu for reminders
+			const guild = await Guild.getGuildById(interaction.guild.id);
+			const reminders = await guild.getReminders();
+		
+			if (reminders.length === 0) {
+				await interaction.reply({
+					content: 'There are no reminders to preview.',
+					ephemeral: true
+				});
+				return;
+			}
+		
+			// Create a select menu with all reminders
+			const reminderOptions = await Promise.all(reminders.map(async r => {
+				const messages = await r.getMessages();
+
+				if (messages.length === 0) {
+					return {
+						label: await r.getName(),
+						description: 'No message provided.',
+						value: (await r.getId()).toString()
+					};
+				}
+
+				return {
+					label: await r.getName(),
+					description: messages[0].substring(0, 50), // Excerpt of the message
+					value: (await r.getId()).toString()
+				};
+			}));
+		
+			const selectMenu = new StringSelectMenuBuilder()
+				.setCustomId('select-reminder-preview')
+				.setPlaceholder('Select a reminder to preview')
+				.addOptions(reminderOptions);
+		
+			const actionRow = new ActionRowBuilder().addComponents(selectMenu);
+		
+			await interaction.reply({
+				content: 'Please select a reminder to preview:',
+				components: [actionRow],
+				ephemeral: true
+			});
+
+			const filter = i => i.customId === 'select-reminder-preview' && i.user.id === interaction.user.id;
+			const collector = interaction.channel.createMessageComponentCollector({ filter, time: 15000 });
+
+			collector.on('collect', async i => {
+				collector.stop();
+				if (i.customId === 'select-reminder-preview') {
+					const reminder = await Reminder.getReminderById(i.values[0]);
+					const channelId = await reminder.getChannel();
+					const channel = await client.channels.fetch(channelId);
+					const messages = await reminder.getMessages();
+					const name = await reminder.getName();
+
+					for (const message of messages) {
+						await channel.send(message);
+					}
+
+					await i.update({ content: `Previewed reminder: ${name}`, components: [] });
 				}
 			});
 		}
