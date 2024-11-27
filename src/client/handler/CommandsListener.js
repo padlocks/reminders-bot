@@ -5,6 +5,7 @@ const MessageCommand = require("../../structure/MessageCommand");
 const { handleMessageCommandOptions, handleApplicationCommandOptions } = require("./CommandOptions");
 const ApplicationCommand = require("../../structure/ApplicationCommand");
 const { error } = require("../../utils/Console");
+const { Guild } = require("../../structure/Guild");
 
 class CommandsListener {
     /**
@@ -17,11 +18,8 @@ class CommandsListener {
 
             if (!config.commands.message_commands) return;
 
-            let prefix = config.commands.prefix;
-
-            if (client.database.has('prefix-' + message.guild.id)) {
-                prefix = client.database.get('prefix-' + message.guild.id);
-            }
+            const guild = await Guild.getGuildById(message.guild.id);
+            const prefix = await guild.getPrefix() || config.commands.prefix;
 
             if (!message.content.startsWith(prefix)) return;
 
