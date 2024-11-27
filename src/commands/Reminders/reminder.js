@@ -59,8 +59,9 @@ module.exports = new ApplicationCommand({
 		]
 	},
 	options: {
-		cooldown: 10000
+		cooldown: 5000
 	},
+	permissions: ['ManageChannels'],
 	/**
 	 * 
 	 * @param {DiscordBot} client 
@@ -135,7 +136,7 @@ module.exports = new ApplicationCommand({
 
 
 					const filter = i => i.customId === 'confirm-create-reminder' || i.customId === 'cancel-create-reminder';
-					const collector = modalInteraction.channel.createMessageComponentCollector({ filter, time: 15000 });
+					const collector = modalInteraction.channel.createMessageComponentCollector({ filter, time: 30000 });
 
 					collector.on('collect', async i => {
 						collector.stop();
@@ -240,7 +241,7 @@ module.exports = new ApplicationCommand({
 
 				// Create a collector to listen for the select menu
 				const filter = i => i.customId === 'select-reminder' && i.user.id === interaction.user.id;
-				const collector = interaction.channel.createMessageComponentCollector({ filter, time: 15000 });
+				const collector = interaction.channel.createMessageComponentCollector({ filter, time: 30000 });
 
 				collector.on('collect', async i => {
 					if (i.customId === 'select-reminder') {
@@ -265,7 +266,7 @@ module.exports = new ApplicationCommand({
 						});
 
 						const buttonFilter = btn => ['confirm-delete', 'cancel-delete'].includes(btn.customId) && btn.user.id === interaction.user.id;
-						const buttonCollector = interaction.channel.createMessageComponentCollector({ buttonFilter, time: 15000 });
+						const buttonCollector = interaction.channel.createMessageComponentCollector({ buttonFilter, time: 30000 });
 
 						buttonCollector.on('collect', async btn => {
 							try {
@@ -408,7 +409,7 @@ module.exports = new ApplicationCommand({
 			});
 		
 			const filter = i => i.customId === 'select-reminder-edit' && i.user.id === interaction.user.id;
-			const collector = interaction.channel.createMessageComponentCollector({ filter, time: 15000 });
+			const collector = interaction.channel.createMessageComponentCollector({ filter, time: 30000 });
 		
 			collector.on('collect', async i => {
 				if (i.customId === 'select-reminder-edit') {
@@ -479,7 +480,7 @@ module.exports = new ApplicationCommand({
 						});
 		
 						const filter = i => i.customId === 'confirm-edit-reminder' || i.customId === 'cancel-edit-reminder';
-						const collector = modalInteraction.channel.createMessageComponentCollector({ filter, time: 15000 });
+						const collector = modalInteraction.channel.createMessageComponentCollector({ filter, time: 30000 });
 		
 						collector.on('collect', async i => {
 							collector.stop();
@@ -580,7 +581,7 @@ module.exports = new ApplicationCommand({
 			});
 
 			const filter = i => i.customId === 'select-reminder-preview' && i.user.id === interaction.user.id;
-			const collector = interaction.channel.createMessageComponentCollector({ filter, time: 15000 });
+			const collector = interaction.channel.createMessageComponentCollector({ filter, time: 30000 });
 
 			collector.on('collect', async i => {
 				collector.stop();
