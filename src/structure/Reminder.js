@@ -1,4 +1,3 @@
-const { default: mongoose } = require('mongoose');
 const { ReminderModel } = require('../models/ReminderModel');
 
 class Reminder {

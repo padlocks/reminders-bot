@@ -17,15 +17,14 @@ module.exports = new Event({
             reminders.forEach(reminder => {
                 count++;
                 const job = cron.schedule(reminder.cronTime, async () => {
+                    success('Running reminder ' + reminder._id.toString() + ' at ' + new Date().toLocaleString());
                     const channel = await client.channels.fetch(reminder.channel);
                     if (!channel) return;
-                    
-                    const reminderInstance = new Reminder(reminder);
-                    const messages = await reminderInstance.getMessages();
 
-                    await reminder.updateLastRun();
+                    reminder.lastRun = Date.now();
+		            await reminder.save();
 
-					for (const message of messages) {
+					for (const message of reminder.messages) {
 					    channel.send(message);
 					}
                 });
